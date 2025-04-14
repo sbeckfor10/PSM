@@ -1,4 +1,7 @@
-# By Simeon Beckford-Tongs BSc MSc Copyright © 2024. All rights reserved. By Simeon Beckford-Tongs BSc MSc Copyright © 2023. All rights reserved.
+''' 
+By Simeon Beckford-Tongs BSc MSc Copyright © 2024. All rights reserved. 
+By Simeon Beckford-Tongs BSc MSc Copyright © 2023. All rights reserved. (legacy)
+'''
 import tkinter as tk
 from tkinter import simpledialog
 from tkinter import ttk
