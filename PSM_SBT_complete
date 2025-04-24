@@ -1,4 +1,5 @@
-# By Simeon Beckford-Tongs BSc MSc Copyright © 2023. All rights reserved. By Simeon Beckford-Tongs BSc MSc Copyright © 2023. All rights reserved. 
+# By Simeon Beckford-Tongs BSc MSc Copyright © 2023. All rights reserved.
+# 2D
 import tkinter as tk
 import random
 import math
