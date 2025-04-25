@@ -1,0 +1,313 @@
+# By Simeon Beckford-Tongs BSc MSc Copyright © 2023. All rights reserved.
+# 2D
+
+#Importing all necessary libraries
+import tkinter as tk
+import random
+import math
+import time
+from threading import Thread
+import matplotlib.pyplot as plt
+
+# Initialising Global variables
+collision_count = 0
+is_running = True
+time_list = []
+collision_count_list = []
+
+class Ball:
+#Defining class Ball
+    def __init__(self, canvas, x, y, diameter, color, type):
+    #with the following attributes: canvas, image, diameter, radius, x_speed, y_speed, type, mass
+        self.canvas = canvas
+        self.image = canvas.create_oval(x, y, x + diameter, y + diameter, fill=color)
+        self.diameter = diameter
+        self.radius = diameter / 2
+        self.x_speed = random.randint(-6, 6)
+        self.y_speed = random.randint(-6, 6)
+        self.type = type
+        self.mass = self.radius ** 2
+
+    def move(self):
+    #calls the following methods:
+        self.apply_buoyancy()
+        self.apply_air_resistance()
+        self.canvas.move(self.image, self.x_speed, self.y_speed)
+        self.check_boundary_collision()
+
+    def apply_buoyancy(self):
+        buoyant_force = -0.005 * self.mass
+        self.y_speed += buoyant_force / self.mass
+
+    def apply_air_resistance(self):
+      drag_factor = 0.00000014  # Value in standard form and reference below
+      #Ā0 = 1.4 × 10−8 N·s/m 
+      #[https://www.pnas.org/doi/10.1073/pnas.0602043103#:~:text=The%20translational%20drag%20coefficient%20of,is%20due%20to%20the%20flagella.]
+
+      # Calculate the magnitude of the speed
+      speed_magnitude = math.sqrt(self.x_speed**2 + self.y_speed**2)
+
+      # Calculate the reduction in speed, more reduction for higher speeds
+      speed_reduction = drag_factor * speed_magnitude**2
+
+      # Apply the reduction to the x and y components of the speed
+      # Ensure we don't reverse the direction due to drag
+      self.x_speed = self.x_speed - (speed_reduction * self.x_speed / speed_magnitude) if self.x_speed != 0 else 0
+      self.y_speed = self.y_speed - (speed_reduction * self.y_speed / speed_magnitude) if self.y_speed != 0 else 0
+
+    def check_boundary_collision(self):
+        pos = self.canvas.coords(self.image)
+        if len(pos) != 4:
+            return
+        #If hitting right or left wall the ball bounces off the wall
+        if pos[2] >= self.canvas.winfo_width() or pos[0] <= 0:
+            self.x_speed = -self.x_speed
+        #If hitting top or botton wall, the ball bounces off the wall
+        if pos[3] >= self.canvas.winfo_height() or pos[1] <= 0:
+            self.y_speed = -self.y_speed
+
+    def get_pos(self):
+        return self.canvas.coords(self.image)
+
+    def collide_with(self, other):
+        #Check if two balls are overlapping (collision detection)
+        my_pos = self.get_pos()
+        other_pos = other.get_pos()
+        if not my_pos or not other_pos:
+            return False
+        #Calculate center coordinates
+        x1, y1, x2, y2 = my_pos
+        ox1, oy1, ox2, oy2 = other_pos
+        center_x = (x1 + x2) / 2
+        center_y = (y1 + y2) / 2
+        other_center_x = (ox1 + ox2) / 2
+        other_center_y = (oy1 + oy2) / 2
+
+        #Distance between centers
+        distance = math.sqrt((center_x - other_center_x) ** 2 + (center_y - other_center_y) ** 2)
+        return distance < self.radius + other.radius
+
+    def delete(self):
+        self.canvas.delete(self.image) # Remove from canvas
+
+def create_random_ball(canvas, diameter, color, type):
+    #Generate a ball at a random location within the canvas
+    x = random.randint(0, int(canvas['width']) - diameter)
+    y = random.randint(0, int(canvas['height']) - diameter)
+    return Ball(canvas, x, y, diameter, color, type)
+
+def add_particles(canvas, particles, color, type, diameter, number):
+#Adds a particular number of a specific type of particle to the system
+    for _ in range(number):
+        particle = create_random_ball(canvas, diameter, color, type)
+        particles.append(particle)
+
+def update(canvas, particles, blue_power, uv_power, start_time, timer_label, timer_display, collision_label):
+    global collision_count, is_running, time_list, collision_count_list
+
+    if not is_running: #If is_running is False
+        return
+
+    #calculate elapsed_time
+    #update GUI labels for time
+    #check if any red virus particles remain
+
+    current_time = time.time()
+    elapsed_time = current_time - start_time
+    millis = int((elapsed_time % 1) * 100)
+    seconds = int(elapsed_time % 60)
+    minutes = int(elapsed_time // 60)
+    timer_label.config(text=f"Time: {elapsed_time:.2f} seconds")
+    timer_display.config(text=f"{minutes:02d}:{seconds:02d}.{millis:02d}")
+
+    red_particles_exist = any(particle for particle in particles if particle.type == 'virus')
+
+    for particle in particles:
+        particle.move()
+
+    # For each uniques pair of particles,
+        #if collide_with(other):
+        #increment collision_count
+        #update GUI label
+        #swap speeds
+        #If pathogens and disinfectant collide, delete pathogen
+
+    for i, particle in enumerate(particles[:-1]):
+        for other in particles[i+1:]:
+            if particle.collide_with(other):
+                collision_count += 1
+                collision_label.config(text=f"Collisions: {collision_count}")
+
+                particle.x_speed, other.x_speed = other.x_speed, particle.x_speed
+                particle.y_speed, other.y_speed = other.y_speed, particle.y_speed
+
+                if particle.type == 'virus' and other.type == 'disinfectant':
+                    if random.random() < blue_power / 100:
+                        particle.delete()
+                        del particles[i]
+                        break
+                elif other.type == 'virus' and particle.type == 'disinfectant':
+                    if random.random() < blue_power / 100:
+                        other.delete()
+                        del particles[i + 1]
+                        break
+
+    # UV light effect
+    # Randomly applying UV radiation, with probability uv_power%, turn one particle purple and schedule deletion
+    '''A random SARS-CoV-2 particle is selected every 1-10 seconds then 
+    depending on the user input percentage [ UV Irradiation Percentage Reduction % ( UVIPR % ) ], 
+    there is that percentage that the particle is destroyed i.e. turns purple. 
+    For example, if the user entered 90.00% in the UVIPR dialog box then a random particle 
+    would be selected every 1-10 seconds. Those selected particles would then have a 90.00% chance 
+    of being destroyed i.e. turning purple then disappearing.
+    '''
+    if random.random() < uv_power / 100:
+        if particles:
+            selected_particle = random.choice(particles)
+            canvas.itemconfig(selected_particle.image, fill='purple')
+            Thread(target=lambda: destroy_particle_after_delay(selected_particle, particles, 2)).start()
+
+#Recording elapsed_time and collision_count
+    
+    time_list.append(elapsed_time)
+    collision_count_list.append(collision_count)
+
+#If pathogen particles exist:
+#schedule update() again after 50ms
+#else: end simulation and print time
+    if red_particles_exist:
+        canvas.after(50, update, canvas, particles, blue_power, uv_power, start_time, timer_label, timer_display, collision_label)
+    else:
+        print(f"Simulation ended in {timer_display['text']}")
+
+def destroy_particle_after_delay(particle, particles, delay):
+#sleep for delay seconds
+#if particle still in list: remove and delete
+    time.sleep(delay)
+    if particle in particles:
+        particle.delete()
+        particles.remove(particle)
+
+def stop_simulation():
+    global is_running
+    is_running = False
+    plot_collision_rate()
+
+def plot_collision_rate():
+    plt.plot(time_list, collision_count_list)
+    plt.xlabel('Time (seconds)')
+    plt.ylabel('Collision Count')
+    plt.title('Collision Rate Over Time')
+    plt.show()
+
+def main(total_particles, blue_power, uv_power):
+    #setup tkinter GUI: window, canvas and labels
+    #adding particles: red for pathogen, blue for disinfectant, purple for UV affected particles
+    #start simulation via update()
+    global collision_count, is_running
+    collision_count = 0
+    is_running = True
+
+    window = tk.Tk()
+    window.title("Virus Disinfectant Simulation")
+    window.geometry("520x420")
+
+    top_frame = tk.Frame(window)
+    top_frame.pack(side=tk.TOP, fill=tk.X)
+
+    timer_label = tk.Label(top_frame, text="Time: 0.0 seconds")
+    timer_label.pack(side=tk.LEFT)
+
+    timer_display = tk.Label(top_frame, text="00:00.00")
+    timer_display.pack(side=tk.LEFT)
+
+    collision_label = tk.Label(top_frame, text="Collisions: 0")
+    collision_label.pack(side=tk.LEFT)
+
+    stop_button = tk.Button(top_frame, text="Stop Simulation", command=stop_simulation)
+    stop_button.pack(side=tk.LEFT)
+
+    canvas = tk.Canvas(window, width=520, height=390, bg='white')
+    canvas.pack()
+
+    particles = []
+    num_virus = int(total_particles) - int(total_particles) // 10
+    num_disinfectant = int(total_particles) // 10
+    add_particles(canvas, particles, 'red', 'virus', 20, num_virus)
+    add_particles(canvas, particles, 'blue', 'disinfectant', 10, num_disinfectant)
+
+    start_time = time.time()
+    update(canvas, particles, blue_power, uv_power, start_time, timer_label, timer_display, collision_label)
+
+    window.mainloop()
+
+def setup_window():
+    #Creates setup window for user input
+    #On click: call start_simulation()
+    setup = tk.Tk()
+    setup.title("Simulation Setup")
+    setup.geometry("390x300")
+
+    tk.Label(setup, text="Total Number of Microbes:").pack()
+    particle_entry = tk.Entry(setup)
+    particle_entry.pack()
+
+    tk.Label(setup, text="AVNP Percentage Reduction (%):").pack()
+    blue_power_entry = tk.Entry(setup)
+    blue_power_entry.pack()
+
+    tk.Label(setup, text="UV Irradiation Percentage Reduction (%):").pack()
+    uv_power_entry = tk.Entry(setup)
+    uv_power_entry.pack()
+
+    start_button = tk.Button(setup, text="Start Simulation", command=lambda: start_simulation(particle_entry, blue_power_entry, uv_power_entry, setup))
+    start_button.pack()
+
+    setup.mainloop()
+
+def start_simulation(particle_entry, blue_power_entry, uv_power_entry, setup_window):
+    #validating inputs, call main
+    try:
+        total_particles = float(particle_entry.get())
+        blue_power = float(blue_power_entry.get())
+        uv_power = float(uv_power_entry.get())
+        setup_window.destroy()
+        main(total_particles, blue_power, uv_power)
+    except ValueError:
+        print("Please enter valid numbers in all fields.")
+
+if __name__ == "__main__":
+    setup_window()
+
+
+
+# A = 1/2 ρ v2 π r2
+# A: air flow force
+# B: buoyancy force 
+# D: drag force
+# G: gravitaional force
+# droplet_radius = 0.002285 # Radius of a droplet (m)
+
+'''def resource_path ( relative_path ):
+  absolute_path = os.path.abspath(_file_)
+  root_path = os.path.dirname( absolute_path(_file_)
+  base_path = getattr( sys,'_MEIPASS', root_path )
+  return os.path.join( base_path, relative_path )
+'''
+
+''' # For Windows
+block_cipher = None
+
+a = Analysis(['simulation.py'],
+             pathex=['/path/to/your/project'],
+             binaries=[],
+             datas=[('*.wav', '.')],
+             hiddenimports=[],
+             hookspath=[],
+             runtime_hooks=[],
+             excludes=[],
+             win_no_prefer_redirects=False,
+             win_private_assemblies=False,
+             cipher=block_cipher,
+           #simulation.specsimulation.specsimulation.spec
+'''
